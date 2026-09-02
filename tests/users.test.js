@@ -8,11 +8,12 @@ const User = require('../models/User.model');
 
 let mongoServer;
 let app;
+let logger;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
-  ({ app } = createApp());
+  ({ app, logger } = createApp());
 });
 
 afterEach(async () => {
@@ -20,6 +21,9 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  // log entries are written off the response path; let the in-flight
+  // ones land before the connection goes away
+  await logger.flush();
   await mongoose.disconnect();
   await mongoServer.stop();
 });

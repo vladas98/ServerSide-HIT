@@ -9,11 +9,15 @@ const Report = require('../models/Report.model');
 
 let mongoServer;
 let app;
+let logger;
 
 beforeAll(async () => {
+  // userExists() refuses to call out at all when this is unset, so give it
+  // a value even though the fetch below is stubbed.
+  process.env.USERS_SERVICE_URL = 'http://users-service.test';
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
-  ({ app } = createApp());
+  ({ app, logger } = createApp());
 });
 
 beforeEach(() => {
@@ -32,6 +36,9 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  // log entries are written off the response path; let the in-flight
+  // ones land before the connection goes away
+  await logger.flush();
   await mongoose.disconnect();
   await mongoServer.stop();
 });

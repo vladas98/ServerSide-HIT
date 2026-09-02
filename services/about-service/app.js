@@ -32,7 +32,7 @@ function createApp() {
 
   app.get('/api/about', async (req, res, next) => {
     try {
-      await logger.log('GET /api/about accessed');
+      logger.log('GET /api/about accessed');
       res.json(getTeamMembers());
     } catch (err) {
       next(err);

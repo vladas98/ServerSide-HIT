@@ -18,7 +18,7 @@ function createApp() {
 
   app.get('/api/users', async (req, res, next) => {
     try {
-      await logger.log('GET /api/users accessed');
+      logger.log('GET /api/users accessed');
       const users = await User.find().select('-_id id first_name last_name birthday').lean();
       res.json(users);
     } catch (err) {
@@ -41,7 +41,7 @@ function createApp() {
 
   app.get('/api/users/:id', async (req, res, next) => {
     try {
-      await logger.log('GET /api/users/:id accessed', { id: req.params.id });
+      logger.log('GET /api/users/:id accessed', { id: req.params.id });
 
       const id = Number(req.params.id);
       if (!Number.isInteger(id)) {
@@ -71,7 +71,7 @@ function createApp() {
 
   app.post('/api/add', async (req, res, next) => {
     try {
-      await logger.log('POST /api/add (user) accessed', { body: req.body });
+      logger.log('POST /api/add (user) accessed', { body: req.body });
 
       const { id, first_name, last_name, birthday } = req.body;
       if (id === undefined || !first_name || !last_name || !birthday) {

@@ -30,4 +30,9 @@ const costSchema = new mongoose.Schema({
   },
 }, { versionKey: false });
 
+// Serves both of the queries run against this collection: the monthly
+// report's userid + created_at range scan, and the per-user total the
+// users-service aggregates. Without it either one is a full scan.
+costSchema.index({ userid: 1, created_at: 1 });
+
 module.exports = mongoose.model('Cost', costSchema, 'costs');

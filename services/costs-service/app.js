@@ -10,14 +10,45 @@ const { getMonthlyReport, isPastMonth } = require('./reportService');
 
 const PROCESS_NAME = 'costs-service';
 
-async function userExists(userid) {
-  const usersServiceUrl = process.env.USERS_SERVICE_URL;
-  const response = await fetch(`${usersServiceUrl}/api/users/${userid}/exists`);
-  if (!response.ok) {
+// A free-tier host spins an idle service down, so the first call to the
+// users-service after a quiet spell can hit an instance that is still
+// booting and answer with a gateway error. One retry covers that without
+// turning a cold dependency into a failed request; the timeout keeps a
+// users-service that never answers from hanging this one indefinitely.
+const USERS_SERVICE_TIMEOUT_MS = 8000;
+const USERS_SERVICE_ATTEMPTS = 2;
+
+async function userExists(userid, logger) {
+  // A trailing slash on the configured URL would produce a double slash,
+  // which the users-service does not match against any route.
+  const usersServiceUrl = (process.env.USERS_SERVICE_URL || '').replace(/\/+$/, '');
+  if (!usersServiceUrl) {
+    logger.pino.error('USERS_SERVICE_URL is not set');
     throw new AppError(502, 'could not reach the users service');
   }
-  const data = await response.json();
-  return data.exists;
+
+  const url = `${usersServiceUrl}/api/users/${userid}/exists`;
+
+  for (let attempt = 1; attempt <= USERS_SERVICE_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(USERS_SERVICE_TIMEOUT_MS),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.exists;
+      }
+      /* Worth recording the status and the URL that produced it: a wrong
+         host in USERS_SERVICE_URL still resolves (onrender.com answers any
+         subdomain) and comes back as a plain 404, which is otherwise
+         indistinguishable from the users-service itself being down. */
+      logger.pino.error({ url, status: response.status }, 'users-service lookup failed');
+    } catch (err) {
+      logger.pino.error({ url, err }, 'users-service lookup could not complete');
+    }
+  }
+
+  throw new AppError(502, 'could not reach the users service');
 }
 
 function createApp() {
@@ -29,7 +60,7 @@ function createApp() {
 
   app.post('/api/add', async (req, res, next) => {
     try {
-      await logger.log('POST /api/add (cost) accessed', { body: req.body });
+      logger.log('POST /api/add (cost) accessed', { body: req.body });
 
       const { description, category, userid, sum } = req.body;
 
@@ -42,7 +73,7 @@ function createApp() {
       if (typeof sum !== 'number' || sum <= 0) {
         throw new AppError(400, 'sum must be a positive number');
       }
-      if (!(await userExists(userid))) {
+      if (!(await userExists(userid, logger))) {
         throw new AppError(404, `user ${userid} was not found`);
       }
 
@@ -71,7 +102,7 @@ function createApp() {
 
   app.get('/api/report', async (req, res, next) => {
     try {
-      await logger.log('GET /api/report accessed', { query: req.query });
+      logger.log('GET /api/report accessed', { query: req.query });
 
       const userid = Number(req.query.id);
       const year = Number(req.query.year);

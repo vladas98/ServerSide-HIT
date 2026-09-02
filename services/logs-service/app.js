@@ -19,7 +19,7 @@ function createApp() {
 
   app.get('/api/logs', async (req, res, next) => {
     try {
-      await logger.log('GET /api/logs accessed');
+      logger.log('GET /api/logs accessed');
       const logs = await Log.find().sort({ created_at: -1 }).lean();
       res.json(logs);
     } catch (err) {
