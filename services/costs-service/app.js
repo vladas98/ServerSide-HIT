@@ -10,12 +10,17 @@ const { getMonthlyReport, isPastMonth } = require('./reportService');
 
 const PROCESS_NAME = 'costs-service';
 
-// A free-tier host spins an idle service down, so the first call to the
-// users-service after a quiet spell can hit an instance that is still
-// booting and answer with a gateway error. One retry covers that without
-// turning a cold dependency into a failed request; the timeout keeps a
-// users-service that never answers from hanging this one indefinitely.
-const USERS_SERVICE_TIMEOUT_MS = 8000;
+/* A free-tier host spins an idle service down, so the first call to the
+   users-service after a quiet spell has to wait for that instance to boot
+   before it answers. A measured cold start takes roughly 23 seconds, so the
+   timeout has to be comfortably longer than that: an 8 second limit expired
+   on every attempt and turned a merely sleeping dependency into a 502, which
+   is exactly what happens on the first request of a grading run.
+
+   The timeout still matters, since a users-service that never answers must
+   not hang this one forever. Two attempts of 30 seconds bound the wait at a
+   minute, and a service that was only asleep is awake well inside that. */
+const USERS_SERVICE_TIMEOUT_MS = 30000;
 const USERS_SERVICE_ATTEMPTS = 2;
 
 async function userExists(userid, logger) {
